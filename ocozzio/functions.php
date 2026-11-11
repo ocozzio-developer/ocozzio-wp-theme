@@ -11,6 +11,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+// Parent-theme modules (get_template_directory: always this theme, even with a child theme active).
+require_once get_template_directory() . '/inc/tracking.php';
+require_once get_template_directory() . '/inc/activity-log.php';
+
 /**
  * The client code used to prefix generated classes: the child theme folder without "-theme".
  * Override with add_filter( 'ocozzio_prefix', ... ) if a child folder doesn't follow that pattern.
@@ -55,12 +59,14 @@ function ocozzio_enqueue( $handle, $file ) {
 
 add_action( 'wp_enqueue_scripts', 'ocozzio_enqueue_assets' );
 function ocozzio_enqueue_assets() {
+	global $template;
 	ocozzio_enqueue( 'ocozzio-style', 'style.css' );
 	ocozzio_enqueue( 'ocozzio-main', 'js/main.js' );
 
-	if ( is_page() ) {
-		$slug = get_post_field( 'post_name', get_queried_object_id() );
-		ocozzio_enqueue( 'ocozzio-page', 'css/templates/' . sanitize_file_name( $slug ) . '.css' );
+	// The stylesheet matching the template WordPress chose: page-about.php -> about.css, single-video.php -> single-video.css.
+	if ( $template ) {
+		$name = preg_replace( '/^page-/', '', basename( $template, '.php' ) );
+		ocozzio_enqueue( 'ocozzio-page', 'css/templates/' . sanitize_file_name( $name ) . '.css' );
 	}
 }
 
@@ -69,6 +75,9 @@ function ocozzio_enqueue_assets() {
  */
 add_filter( 'nav_menu_css_class', 'ocozzio_menu_item_classes', 10, 4 );
 function ocozzio_menu_item_classes( $classes, $item, $args, $depth ) {
+	if ( ! empty( $args->ocozzio_item_class ) ) {
+		$classes[] = $args->ocozzio_item_class;
+	}
 	if ( 'primary' === $args->theme_location && 0 === $depth ) {
 		$p         = ocozzio_prefix();
 		$classes[] = $p . '-nav-item';
@@ -81,6 +90,9 @@ function ocozzio_menu_item_classes( $classes, $item, $args, $depth ) {
 
 add_filter( 'nav_menu_link_attributes', 'ocozzio_menu_link_attributes', 10, 4 );
 function ocozzio_menu_link_attributes( $atts, $item, $args, $depth ) {
+	if ( ! empty( $args->ocozzio_link_class ) ) {
+		$atts['class'] = trim( ( $atts['class'] ?? '' ) . ' ' . $args->ocozzio_link_class );
+	}
 	if ( 'primary' === $args->theme_location ) {
 		$p = ocozzio_prefix();
 		if ( 0 === $depth ) {
@@ -103,10 +115,55 @@ function ocozzio_menu_link_attributes( $atts, $item, $args, $depth ) {
 
 add_filter( 'nav_menu_submenu_css_class', 'ocozzio_submenu_classes', 10, 2 );
 function ocozzio_submenu_classes( $classes, $args ) {
+	if ( ! empty( $args->ocozzio_submenu_class ) ) {
+		$classes[] = $args->ocozzio_submenu_class;
+	}
 	if ( 'primary' === $args->theme_location ) {
 		$classes[] = ocozzio_prefix() . '-dropdown-menu';
 	}
 	return $classes;
+}
+
+/**
+ * A field of the current (or given) post: ACF's get_field() when ACF is active, post meta otherwise.
+ * $format = false returns the raw stored value (e.g. an attachment ID for image fields).
+ */
+function ocozzio_field( $name, $post_id = null, $format = true ) {
+	$post_id = $post_id ? $post_id : get_the_ID();
+	if ( function_exists( 'get_field' ) ) {
+		$value = get_field( $name, $post_id, $format );
+	} else {
+		$value = get_post_meta( $post_id, $name, true );
+	}
+	if ( is_array( $value ) ) {
+		if ( isset( $value['url'] ) ) {
+			return $value['url'];
+		}
+		if ( isset( $value['ID'] ) ) {
+			return $value['ID'];
+		}
+	}
+	return $value;
+}
+
+/**
+ * Post IDs stored in a relationship / post object field (ACF or raw meta).
+ */
+function ocozzio_related_ids( $name, $post_id = null ) {
+	$value = ocozzio_field( $name, $post_id, false );
+	$ids   = array_filter( array_map( 'intval', (array) maybe_unserialize( $value ) ) );
+	return $ids ? $ids : array( 0 );
+}
+
+/**
+ * An attachment image without width/height attributes (sizing is done in CSS).
+ */
+function ocozzio_image( $attachment_id, $size = 'large', $attr = array() ) {
+	if ( ! $attachment_id || ! is_numeric( $attachment_id ) ) {
+		return '';
+	}
+	$html = wp_get_attachment_image( (int) $attachment_id, $size, false, $attr );
+	return preg_replace( '/\s(width|height)="\d+"/', '', $html );
 }
 
 /**
