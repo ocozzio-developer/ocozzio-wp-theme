@@ -1,0 +1,39 @@
+name: Promote (stable)
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to promote (e.g. 1.0.12). Leave empty for the current beta.
+        required: false
+
+permissions:
+  contents: write
+
+concurrency: parent-release
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        run: |
+          version="${{ inputs.version }}"
+          if [ -z "$version" ]; then
+            git fetch --depth=1 origin update-feed
+            version=$(git show FETCH_HEAD:update-beta.json | sed -n 's/.*"version": "\([^"]*\)".*/\1/p')
+          fi
+          test -n "$version" || { echo "::error::No version given and no beta release found"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Mark the release as stable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "v${{ steps.v.outputs.version }}" --prerelease=false --latest
+
+      - name: Point the stable feed at it
+        run: bash .github/feed.sh update.json "${{ steps.v.outputs.version }}"
