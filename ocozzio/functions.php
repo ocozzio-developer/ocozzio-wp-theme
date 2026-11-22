@@ -71,6 +71,15 @@ function ocozzio_enqueue_assets() {
 }
 
 /**
+ * js/main.js is an ES module build (as in development): loaded as a module, its top-level names stay in its own
+ * scope instead of colliding with other scripts' globals, which would stop it from running.
+ */
+add_filter( 'script_loader_tag', 'ocozzio_module_script', 10, 2 );
+function ocozzio_module_script( $tag, $handle ) {
+	return 'ocozzio-main' === $handle ? str_replace( '<script ', '<script type="module" ', $tag ) : $tag;
+}
+
+/**
  * Primary menu markup to match the starter's nav styles and main.js dropdowns.
  */
 add_filter( 'nav_menu_css_class', 'ocozzio_menu_item_classes', 10, 4 );
