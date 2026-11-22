@@ -14,6 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 // Parent-theme modules (get_template_directory: always this theme, even with a child theme active).
 require_once get_template_directory() . '/inc/tracking.php';
 require_once get_template_directory() . '/inc/activity-log.php';
+require_once get_template_directory() . '/inc/updates.php';
 
 /**
  * The client code used to prefix generated classes: the child theme folder without "-theme".

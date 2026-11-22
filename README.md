@@ -2,12 +2,20 @@
 
 The parent theme (`ocozzio/`) of every client WordPress theme built with the starter repo. Client themes are child themes (`Template: ocozzio`) holding only their generated pages, header/footer, CSS and JS.
 
-Sites update this theme themselves: the theme-deployer MU plugin (in the starter repo, `wp-deploy/`) checks this repo's update feed with plugin-update-checker and lets WordPress install new versions in the background.
+The theme updates itself on every site: `inc/updates.php` points the bundled plugin-update-checker (`inc/plugin-update-checker/`, 5.7) at this repo's update feed, and WordPress installs new versions in the background, whether or not a child theme is active. No plugin is needed on the site. The starter's deploy tooling only installs this theme when a site doesn't have it (`npm run wp-deploy-setup`); it never updates it. Don't remove the updater: without it, sites stay on whatever version they were first given.
+
+**Channel**, per site in `wp-config.php` (default `stable`):
+```php
+define( 'THEME_PARENT_CHANNEL', 'beta' ); // 'stable': update.json (client sites) · 'beta': update-beta.json (our dev site) · 'off': no updates
+```
+
+**Sites installed before the updater** (versions without `inc/updates.php`) don't update until they get one release that has it. Install it once, over SSH (`wp theme install https://github.com/ocozzio-developer/ocozzio-wp-theme/releases/latest/download/ocozzio.zip --force`) or in wp-admin (Appearance > Themes > Add New > Upload Theme, replacing the installed one); from then on it updates itself.
 
 ## What's in the theme
 - `functions.php`: menus (Primary, Footer), custom logo, `square-thumb` (750×750 crop), cache-busted loading of the child theme's `style.css`, `js/main.js` and `css/templates/<page>.css`, nav classes for the starter's markup, classic editor, shortcodes in text widgets, the site logo on the login screen, external links in a new tab, 404s redirected to the homepage (301).
 - `inc/tracking.php`: **Tracking & Consent** dashboard widget. Sets the GTM container ID, Google Consent Mode v2 defaults (toggle; everything denied until the banner grants consent), cookie banner snippets (Termly, CookieYes, …: one for the head, before GTM, and one for just after `<body>` opens) and the UserWay account ID (accessibility widget, footer). Each embed prints only when it's set. Editing needs `manage_options` + `unfiltered_html`. Child headers must call `wp_body_open()`. Filter `ocozzio_consent_defaults` to change the consent defaults.
 - `inc/activity-log.php`: permanent activity log in `{prefix}ocozzio_activity_log`. Records logins/failed logins, user changes, content status changes/edits/deletes, media, plugin/theme/core installs and updates, exports and key settings (filter `ocozzio_log_watched_options`). Shown in a **Recent Activity** dashboard widget and at Dashboard → Activity Log. Never purged and not deletable from the UI; the table survives theme switches. Log your own events with `ocozzio_log( $action, $message, $args )`. IPs come from `REMOTE_ADDR`; filter `ocozzio_log_ip` behind a trusted proxy.
+- `inc/updates.php`: self-updates from the update feed (see above); `inc/plugin-update-checker/` is the bundled library, as released (MIT).
 - `header.php`, `footer.php`, `index.php`, `page.php`, `single.php`: fallbacks. Client themes generate their own header/footer.
 - Client-prefixed classes (`rxp-nav-item`, …) come from `ocozzio_prefix()`: the child theme folder name without `-theme` (`rxp-theme` → `rxp`). Filter `ocozzio_prefix` to override.
 - PHP functions use `ocozzio_`, handles `ocozzio-`, text domain `ocozzio`.
